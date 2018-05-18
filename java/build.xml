@@ -1,0 +1,167 @@
+<?xml version='1.0'?>
+<project name="SCT-AU Guidance Reference Implementation" default="usage" basedir=".">
+
+	<property name="src.dir" value="./src/main"/>
+	<property name="resources.dir" value="./src/resources"/>
+	<property name="test.src.dir" value="./src/test"/>
+	<property name="build.dir" value="./bin"/>
+	<property name="lib.dir" value="./lib"/>
+	<property name="output.dir" value="./dist"/>
+	<property name="test.report.dir" value="./dist/report"/>
+	<property name="dist.file" value="${output.dir}/refset-sample-app.jar"/>
+	<property name="refsets.file" value="${build.dir}/clinical-refsets.txt"/>
+
+	<property file="application.properties"/>
+
+	<!-- Full build. Create and populate the database, then compile and run the application. -->
+	<target name="all" depends="db, app"/>
+
+	<!-- Create and populate the database. -->
+	<target name="db" depends="createDbSchema, loadDbData"/>
+
+	<!-- Rebuild the application -->
+	<target name="build" depends="clean, compile, package"/>
+
+	<!-- Rebuild and run the application -->
+	<target name="app" depends="build, run"/>
+
+
+	<target name="usage">
+	    <echo message="Please run this ANT build using one or more of the following targets:"/>
+		<echo message="   db      Create and populate the database."/>
+		<echo message="   app     Compile and run the application."/>
+		<echo message="   test    Run the unit test to verify the application is functioning correctly."/>
+	</target>
+
+	<!-- Remove all generated artefacts-->
+	<target name="clean">
+		<delete includeemptydirs="true" failonerror="false">
+			<fileset dir="${build.dir}" includes="**/*"/>
+			<fileset dir="${output.dir}" includes="**/*"/>
+		</delete>
+		<mkdir dir="${build.dir}"/>
+		<mkdir dir="${output.dir}"/>
+	</target>
+
+
+	<!-- Create a relative java classpath to all the included java archive (jar) files -->
+	<target name="_set_classpath">
+		<path id="lib.classpath">
+			<fileset id="lib.dir.files" dir="${lib.dir}">
+				<include name="*.jar" />
+			</fileset>
+		</path>
+	</target>
+
+
+	<!-- Compile all the java source code -->
+	<target name="compile" depends="_set_classpath">
+		<javac srcdir="${src.dir}" destdir="${build.dir}" classpathref="lib.classpath" source="1.6" includeantruntime="false" debug="${java.debug.output}" />
+		<javac srcdir="${test.src.dir}" destdir="${build.dir}" classpathref="lib.classpath" source="1.6" includeantruntime="false" debug="${java.debug.output}" />
+	</target>
+
+
+	<!-- Execute the included jUnit test cases to verify the code -->
+	<target name="test" depends="compile">
+		<junit printsummary="true" maxmemory="${java.max.memory}">
+			<classpath>
+				<path refid="lib.classpath" />
+				<pathelement location="${build.dir}" />
+			</classpath>
+
+			<batchtest fork="yes" todir="${test.report.dir}" haltonfailure="false" failureproperty="junit.failed" >
+				<fileset dir="${test.src.dir}">
+					<include name="**/*Test.java"/>
+				</fileset>
+			</batchtest>
+
+			<formatter type="plain" usefile="false"/>
+		</junit>
+		<fail if="junit.failed" message="Tests failed"/>
+	</target>
+
+
+	<!-- Create a runable jar file that may be run directly -->
+	<target name="package" depends="_set_classpath">
+		<manifestclasspath jarfile="${dist.file}" property="manifest.classpath">
+			<classpath refid="lib.classpath"/>
+		</manifestclasspath>
+
+		<jar destfile="${dist.file}" basedir="${build.dir}">
+			<manifest>
+				<attribute name="Main-Class" value="au.gov.digitalhealth.Main"/>
+				<attribute name="Class-Path" value="${manifest.classpath}"/>
+			</manifest>
+		</jar>
+	</target>
+
+
+	<!-- Run the compiled java application-->
+	<target name="run">
+		<java jar="${dist.file}" fork="true" maxmemory="${java.max.memory}">
+			<jvmarg value="-Dconfig.file=application.properties"/>
+		</java>
+	</target>
+
+	<!-- Defines a macro to find specific files in the terminology bundle (since the file names change every release) -->
+	<!-- and set the file location into an ant property that can be substituted into the data load SQL script. The    -->
+	<!-- macro will also ensure the path separator is correct for windows os (double forward-slash required).         -->
+	<macrodef name="findsourcefile">
+		<attribute name="property"/>
+		<attribute name="includes"/>
+		<attribute name="dir"/>
+		<sequential>
+			<pathconvert property="@{property}">
+				<path>
+					<fileset dir="@{dir}" includes="@{includes}"/>
+				</path>
+				<filtermapper>
+					<replacestring from="\" to="\\"/>
+				</filtermapper>
+			</pathconvert>
+		</sequential>
+	</macrodef>
+
+	<!-- Create an ANT property with the location of each RF2 file to be loaded into the database -->
+	<!-- This property will be substituted into the data load SQL script.                         -->
+	<target name="_set_rf2_file_properties">
+		<findsourcefile dir="${rf2.source.dir}" property="rf2.concepts.file" includes="**/Snapshot/**/sct2_Concept*"/>
+		<findsourcefile dir="${rf2.source.dir}" property="rf2.descriptions.file" includes="**/Snapshot/**/sct2_Description*"/>
+		<findsourcefile dir="${rf2.source.dir}" property="rf2.relationships.file" includes="**/Snapshot/**/sct2_Relationship*"/>
+		<findsourcefile dir="${rf2.source.dir}" property="rf2.identifiers.file" includes="**/Snapshot/**/sct2_Identifier*"/>
+		<findsourcefile dir="${rf2.source.dir}" property="rf2.adrs.file" includes="**/Snapshot/**/der2_cRefset_LanguageSnapshot-en-AU*"/>
+	</target>
+
+
+	<!-- Concatenate all RF2 reference set files into a single file with one known name that can -->
+	<!-- easily be consumed by the data load SQL script.                                         -->
+	<target name="_build_clincal_refset_file">
+		<concat destfile="${refsets.file}" append="false">
+			<fileset dir="${rf2.source.dir}">
+				<include name="**/Snapshot/**/der2_Refset_*.txt" />
+			</fileset>
+			<filterchain>
+				<headfilter skip="1" lines="-1" />
+			</filterchain>
+		</concat>
+	</target>
+
+
+	<!-- Run a database script to re-generate all the required tables -->
+	<target name="createDbSchema" depends="_set_classpath">
+		<sql driver="${db.driver.classname}" url="${db.connection.url}" userid="${db.user.name}" password="${db.user.password}" classpathref="lib.classpath">
+			<transaction src="${resources.dir}/db-scripts/createReferenceSchema.sql" />
+		</sql>
+	</target>
+
+
+	<!-- Run a database script to load in the RF2 content files -->
+	<target name="loadDbData" depends="_set_rf2_file_properties, _build_clincal_refset_file">
+		<sql driver="${db.driver.classname}" url="${db.connection.url}" userid="${db.user.name}" password="${db.user.password}" classpathref="lib.classpath">
+			<transaction src="${resources.dir}/db-scripts/importIntoReferenceSchema.sql" />
+			<transaction src="${resources.dir}/db-scripts/createIndexes.sql" />
+		</sql>
+	</target>
+
+
+</project>

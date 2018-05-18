@@ -1,0 +1,19 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="LoadDB.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="DatabaseName" Type="System.String" Scope="User">
+      <Value Profile="(Default)">SCT-AU-RF2</Value>
+    </Setting>
+    <Setting Name="ConnectionString" Type="(Connection string)" Scope="Application">
+      <DesignTimeValue Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
+&lt;SerializableConnectionString xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;ConnectionString&gt;server=localhost;User Id=root;password=;Persist Security Info=True;SslMode=none;&lt;/ConnectionString&gt;
+&lt;/SerializableConnectionString&gt;</DesignTimeValue>
+      <Value Profile="(Default)">server=localhost;User Id=root;password=;Persist Security Info=True;SslMode=none;</Value>
+    </Setting>
+    <Setting Name="SnomedFolderLocation" Type="System.String" Scope="User">
+      <Value Profile="(Default)">C:\Extension RoundUp Jan 2017\Australia\NCTS_SCT_RF2_DISTRIBUTION_32506021000036107-20161231-ALL\SnomedCT_Release_AU1000036_20161231\</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
